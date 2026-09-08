@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wacom PDF Paint Pro - V7 (Desfazer Ativo)</title>
+    <!-- Biblioteca PDF.js para carregar e renderizar os PDFs de forma nativa e segura -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --accent-color: #3b82f6;
+            --text-color: #f3f4f6;
+            --border-color: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Barra de Ferramentas */
+        #toolbar {
+            width: 295px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 16px;
+            z-index: 10;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            overflow-y: auto;
+        }
+
+        h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.7rem;
+            color: #a3a3a3;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: bold;
+        }
+
+        /* Botões de Opções de Quadro */
+        .board-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .btn-board {
+            font-size: 0.72rem;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* Input de Arquivo Customizado */
+        .file-upload {
+            background-color: #2a2a2a;
+            border: 2px dashed #444;
+            padding: 10px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        .file-upload:hover {
+            border-color: var(--accent-color);
+            background-color: #333;
+        }
+        #file-input {
+            display: none;
+        }
+
+        /* Controles de Página */
+        .page-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #252525;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .page-btn {
+            background-color: #333;
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .page-btn:hover:not(:disabled) {
+            background-color: var(--accent-color);
+        }
+        .page-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Botões de Ferramentas */
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .btn {
+            background-color: #2a2a2a;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #3a3a3a;
+        }
+        .btn.active {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-sm {
+            padding: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .btn-gray {
+            background-color: #374151;
+            border-color: #4b5563;
+        }
+        .btn-gray:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+
+        .btn-danger { background-color: #ef4444; border-color: #ef4444; }
+        .btn-danger:hover { background-color: #dc2626; }
+        
+        .btn-success { background-color: #10b981; border-color: #10b981; width: 100%; margin-top: 8px; }
+        .btn-success:hover { background-color: #059669; }
+
+        /* Cores */
+        .colors {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+        .color-swatch {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .color-swatch.active {
+            border-color: var(--text-color);
+            box-shadow: 0 0 8px rgba(255,255,255,0.4);
+        }
+        #custom-color {
+            grid-column: span 5;
+            width: 100%;
+            height: 35px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+        }
+
+        /* Sliders e Containers */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--accent-color);
+        }
+
+        /* Área de Desenho */
+        #viewport-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            background-color: #1a1a1a;
+            position: relative;
+            padding: 20px;
+        }
+
+        /* Posicionamento em camadas */
+        #canvas-wrapper {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            background-color: white;
+        }
+
+        #pdf-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #paintCanvas {
+            position: relative;
+            z-index: 2;
+            touch-action: none;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toolbar">
+        <h2>🖊️ Wacom Notebook</h2>
+
+        <!-- Quadro Livre -->
+        <div class="section">
+            <label>Quadro Livre (Sem PDF)</label>
+            <div class="board-selector">
+                <button id="board-white" class="btn btn-board active">Branco</button>
+                <button id="board-black" class="btn btn-board">Negro</button>
+                <button id="board-grid" class="btn btn-board">Grid</button>
+            </div>
+        </div>
+
+        <!-- Upload PDF -->
+        <div class="section">
+            <label>Ou Abrir PDF</label>
+            <label for="file-input" class="file-upload">📂 Selecionar PDF</label>
+            <input type="file" id="file-input" accept="application/pdf">
+        </div>
+
+        <!-- Páginas -->
+        <div class="section">
+            <label>Navegação</label>
+            <div class="page-controls">
+                <button id="prev-page" class="page-btn" disabled>&lt;</button>
+                <span id="page-info">Pág: <b id="page-num">1</b> / <b id="page-count">1</b></span>
+                <button id="next-page" class="page-btn" disabled>&gt;</button>
+            </div>
+        </div>
+
+        <!-- Ferramentas -->
+        <div class="section">
+            <label>Ferramenta</label>
+            <div class="btn-group" style="grid-template-columns: repeat(3, 1fr);">
+                <button id="tool-brush" class="btn active" style="font-size: 0.72rem;">Pincel</button>
+                <button id="tool-highlighter" class="btn" style="font-size: 0.72rem;">Marca-Texto</button>
+                <button id="tool-eraser" class="btn" style="font-size: 0.72rem;">Borracha</button>
+            </div>
+        </div>
+
+        <!-- Espessura do Traço -->
+        <div class="section" id="brush-size-section">
+            <label id="brush-size-label">Espessura do Pincel</label>
+            <div class="slider-container">
+                <input type="range" id="brush-size" min="1" max="80" value="4">
+                <span id="brush-size-val">4px</span>
+            </div>
+        </div>
+
+        <!-- Tamanho da Borracha -->
+        <div class="section" id="eraser-size-section" style="display: none;">
+            <label>Tamanho da Borracha</label>
+            <div class="btn-group" style="grid-template-columns: repeat(3, 1fr);">
+                <button id="eraser-p" class="btn btn-sm" data-size="12">P</button>
+                <button id="eraser-m" class="btn btn-sm active" data-size="36">M</button>
+                <button id="eraser-g" class="btn btn-sm" data-size="80">G</button>
+            </div>
+        </div>
+
+        <!-- Cores -->
+        <div class="section" id="color-section">
+            <label>Cor do Traço</label>
+            <div class="colors">
+                <div class="color-swatch active" style="background-color: #ff0000;" data-color="#ff0000"></div>
+                <div class="color-swatch" style="background-color: #ffeb3b;" data-color="#ffeb3b"></div>
+                <div class="color-swatch" style="background-color: #00ff00;" data-color="#00ff00"></div>
+                <div class="color-swatch" style="background-color: #00e5ff;" data-color="#00e5ff"></div>
+                <div class="color-swatch" style="background-color: #000000;" data-color="#000000"></div>
+            </div>
+            <input type="color" id="custom-color" value="#ff0000">
+        </div>
+
+        <!-- Ações -->
+        <div class="section">
+            <label>Ações</label>
+            <div class="btn-group" style="grid-template-columns: 1.2fr 1fr; gap: 8px;">
+                <button id="btn-undo" class="btn btn-gray" disabled>↩️ Desfazer</button>
+                <button id="btn-clear" class="btn btn-danger">Limpar</button>
+            </div>
+            <button id="btn-save" class="btn btn-success">Salvar Imagem</button>
+        </div>
+    </div>
+
+    <!-- Área de Visualização -->
+    <div id="viewport-container">
+        <div id="canvas-wrapper">
+            <canvas id="pdf-canvas"></canvas>
+            <canvas id="paintCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const pdfCanvas = document.getElementById('pdf-canvas');
+        const pdfCtx = pdfCanvas.getContext('2d');
+        const paintCanvas = document.getElementById('paintCanvas');
+        const drawCtx = paintCanvas.getContext('2d');
+        const wrapper = document.getElementById('canvas-wrapper');
+
+        let isDrawing = false;
+        let activeTool = 'brush';
+        let currentColor = '#ff0000';
+        
+        let baseSize = 4;             
+        let highlighterSize = 24;     
+        let eraserSize = 36;          
+        
+        let lastX = 0, lastY = 0;
+
+        // Estado do Documento e Histórico (Undo)
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        const scale = 1.5;
+
+        const pageDrawings = {}; 
+        let undoStack = []; // Guardará os estados do canvas para a página ativa
+        const MAX_UNDO = 25; // Limite de passos para economizar RAM
+
+        // Utilitário de Cor RGBA
+        function hexToRGBA(hex, alpha) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(char => char + char).join('');
+            }
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // Atualizar estado visual do botão Desfazer
+        function updateUndoButton() {
+            const undoBtn = document.getElementById('btn-undo');
+            // O stack sempre inicia com o estado atual, então precisamos de no mínimo 2 estados para poder desfazer algo
+            undoBtn.disabled = (undoStack.length <= 1);
+        }
+
+        // Salva o estado atual do desenho na pilha de Undo
+        function pushUndoState() {
+            if (undoStack.length >= MAX_UNDO) {
+                undoStack.shift(); // Remove o mais antigo
+            }
+            undoStack.push(paintCanvas.toDataURL());
+            updateUndoButton();
+        }
+
+        // Aplica o desfazer (Undo)
+        function performUndo() {
+            if (undoStack.length > 1) {
+                undoStack.pop(); // Remove o estado atual
+                const prevState = undoStack[undoStack.length - 1]; // Pega o anterior
+                
+                // Restaura o desenho na tela
+                drawCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+                const img = new Image();
+                img.onload = () => {
+                    drawCtx.globalCompositeOperation = 'source-over';
+                    drawCtx.drawImage(img, 0, 0);
+                    saveCurrentDrawingState(); // Atualiza a memória de página do PDF
+                };
+                img.src = prevState;
+            }
+            updateUndoButton();
+        }
+
+        document.getElementById('btn-undo').addEventListener('click', performUndo);
+
+        // Desenhar Grade Matemática
+        function drawGrid(ctx, width, height, strokeColor = '#e5e7eb', step = 30) {
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 0.5;
+            for (let x = 0; x < width; x += step) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += step) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        }
+
+        // Inicializar Quadro Livre
+        function initBlankBoard(mode) {
+            pdfDoc = null;
+            document.getElementById('page-count').textContent = '1';
+            document.getElementById('page-num').textContent = '1';
+            document.getElementById('prev-page').disabled = true;
+            document.getElementById('next-page').disabled = true;
+
+            const width = 850;
+            const height = 1150;
+
+            wrapper.style.width = width + 'px';
+            wrapper.style.height = height + 'px';
+
+            pdfCanvas.width = width;
+            pdfCanvas.height = height;
+            paintCanvas.width = width;
+            paintCanvas.height = height;
+
+            pdfCtx.clearRect(0, 0, width, height);
+            drawCtx.clearRect(0, 0, width, height);
+
+            if (mode === 'white') {
+                pdfCtx.fillStyle = '#ffffff';
+                pdfCtx.fillRect(0, 0, width, height);
+            } else if (mode === 'black') {
+                pdfCtx.fillStyle = '#1e1e1e';
+                pdfCtx.fillRect(0, 0, width, height);
+            } else if (mode === 'grid') {
+                pdfCtx.fillStyle = '#ffffff';
+                pdfCtx.fillRect(0, 0, width, height);
+                drawGrid(pdfCtx, width, height, '#e2e8f0', 30);
+            }
+
+            drawCtx.globalCompositeOperation = 'source-over';
+            
+            // Reseta a pilha de undo com o estado inicial vazio do quadro livre
+            undoStack = [paintCanvas.toDataURL()];
+            updateUndoButton();
+            
+            saveCurrentDrawingState();
+            pageNum = 1;
+        }
+
+        const boardWhite = document.getElementById('board-white');
+        const boardBlack = document.getElementById('board-black');
+        const boardGrid = document.getElementById('board-grid');
+        const boardButtons = [boardWhite, boardBlack, boardGrid];
+
+        function selectBoardMode(btn, mode) {
+            boardButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            if (mode === 'black' && (currentColor === '#000000' || currentColor === '#ff0000')) {
+                currentColor = '#ffffff';
+                customColor.value = '#ffffff';
+            } else if (mode !== 'black' && currentColor === '#ffffff') {
+                currentColor = '#ff0000';
+                customColor.value = '#ff0000';
+            }
+
+            initBlankBoard(mode);
+        }
+
+        boardWhite.addEventListener('click', () => selectBoardMode(boardWhite, 'white'));
+        boardBlack.addEventListener('click', () => selectBoardMode(boardBlack, 'black'));
+        boardGrid.addEventListener('click', () => selectBoardMode(boardGrid, 'grid'));
+
+        // Carregar PDF
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files;
+            if (!file) return;
+
+            boardButtons.forEach(b => b.classList.remove('active'));
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const typedarray = new Uint8Array(ev.target.result);
+                pdfjsLib.getDocument(typedarray).promise.then((pdf) => {
+                    pdfDoc = pdf;
+                    document.getElementById('page-count').textContent = pdf.numPages;
+                    pageNum = 1;
+                    renderPage(pageNum);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function renderPage(num) {
+            pageRendering = true;
+            pdfDoc.getPage(num).then((page) => {
+                const viewport = page.getViewport({ scale: scale });
+                
+                wrapper.style.width = viewport.width + 'px';
+                wrapper.style.height = viewport.height + 'px';
+
+                pdfCanvas.width = viewport.width;
+                pdfCanvas.height = viewport.height;
+                paintCanvas.width = viewport.width;
+                paintCanvas.height = viewport.height;
+
+                const renderContext = {
+                    canvasContext: pdfCtx,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+
+                renderTask.promise.then(() => {
+                    pageRendering = false;
+                    
+                    drawCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+                    if (pageDrawings[num]) {
+                        const img = new Image();
+                        img.onload = () => {
+                            drawCtx.drawImage(img, 0, 0);
+                            // Carrega o desenho antigo da página e inicia o Undo a partir dele
+                            undoStack = [paintCanvas.toDataURL()];
+                            updateUndoButton();
+                        };
+                        img.src = pageDrawings[num];
+                    } else {
+                        // Inicia o Undo vazio para essa página
+                        undoStack = [paintCanvas.toDataURL()];
+                        updateUndoButton();
+                    }
+
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+
+            document.getElementById('page-num').textContent = num;
+            document.getElementById('prev-page').disabled = (num <= 1);
+            document.getElementById('next-page').disabled = (num >= pdfDoc.numPages);
+        }
+
+        function queueRenderPage(num) {
+            saveCurrentDrawingState();
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        function saveCurrentDrawingState() {
+            pageDrawings[pageNum] = paintCanvas.toDataURL();
+        }
+
+        // Navegação de Páginas
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        });
+
+        // Lógica de Pintura com Wacom e Coalesced Events
+        function getCoords(e) {
+            const rect = paintCanvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        paintCanvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            isDrawing = true;
+            paintCanvas.setPointerCapture(e.pointerId);
+
+            const coords = getCoords(e);
+            lastX = coords.x;
+            lastY = coords.y;
+        });
+
+        paintCanvas.addEventListener('pointermove', (e) => {
+            if (!isDrawing) return;
+            e.preventDefault();
+
+            let events = [e];
+            if (e.getCoalescedEvents) {
+                events = e.getCoalescedEvents();
+            }
+
+            drawCtx.lineCap = 'round';
+            drawCtx.lineJoin = 'round';
+
+            if (activeTool === 'eraser') {
+                drawCtx.globalCompositeOperation = 'destination-out';
+            } else {
+                drawCtx.globalCompositeOperation = 'source-over';
+                if (activeTool === 'highlighter') {
+                    drawCtx.strokeStyle = hexToRGBA(currentColor, 0.35);
+                } else {
+                    drawCtx.strokeStyle = currentColor;
+                }
+            }
+
+            for (let ev of events) {
+                const coords = getCoords(ev);
+                
+                let pressure = 1.0;
+                if (ev.pointerType === 'pen' && ev.pressure !== undefined) {
+                    pressure = ev.pressure;
+                    if (pressure === 0 && ev.buttons > 0) pressure = 0.15;
+                }
+
+                if (activeTool === 'eraser') {
+                    const finalWidth = (ev.pointerType === 'pen') ? eraserSize * pressure * 2.5 : eraserSize;
+                    drawCtx.lineWidth = Math.max(1, finalWidth);
+                } else if (activeTool === 'highlighter') {
+                    const effectivePressure = Math.max(0.4, pressure);
+                    drawCtx.lineWidth = highlighterSize * effectivePressure * 1.5;
+                } else {
+                    const finalWidth = (ev.pointerType === 'pen') ? baseSize * pressure * 2.5 : baseSize;
+                    drawCtx.lineWidth = Math.max(1, finalWidth);
+                }
+
+                drawCtx.beginPath();
+                drawCtx.moveTo(lastX, lastY);
+                drawCtx.lineTo(coords.x, coords.y);
+                drawCtx.stroke();
+
+                lastX = coords.x;
+                lastY = coords.y;
+            }
+        });
+
+        paintCanvas.addEventListener('pointerup', (e) => {
+            if (isDrawing) {
+                isDrawing = false;
+                paintCanvas.releasePointerCapture(e.pointerId);
+                
+                pushUndoState(); // Adiciona o traço finalizado ao histórico
+                saveCurrentDrawingState();
+            }
+        });
+
+        // Eventos da Barra Lateral
+        const swatches = document.querySelectorAll('.color-swatch');
+        const customColor = document.getElementById('custom-color');
+
+        swatches.forEach(swatch => {
+            swatch.addEventListener('click', () => {
+                swatches.forEach(s => s.classList.remove('active'));
+                swatch.classList.add('active');
+                currentColor = swatch.getAttribute('data-color');
+                customColor.value = currentColor;
+                if (activeTool === 'eraser') selectTool('brush');
+            });
+        });
+
+        customColor.addEventListener('input', (e) => {
+            swatches.forEach(s => s.classList.remove('active'));
+            currentColor = e.target.value;
+            if (activeTool === 'eraser') selectTool('brush');
+        });
+
+        const brushBtn = document.getElementById('tool-brush');
+        const highlighterBtn = document.getElementById('tool-highlighter');
+        const eraserBtn = document.getElementById('tool-eraser');
+        
+        const brushSection = document.getElementById('brush-size-section');
+        const eraserSection = document.getElementById('eraser-size-section');
+        const colorSection = document.getElementById('color-section');
+        
+        const sizeSlider = document.getElementById('brush-size');
+        const sizeVal = document.getElementById('brush-size-val');
+        const sizeLabel = document.getElementById('brush-size-label');
+
+        function selectTool(tool) {
+            activeTool = tool;
+            brushBtn.classList.remove('active');
+            highlighterBtn.classList.remove('active');
+            eraserBtn.classList.remove('active');
+
+            if (tool === 'brush') {
+                brushBtn.classList.add('active');
+                brushSection.style.display = 'flex';
+                colorSection.style.display = 'flex';
+                eraserSection.style.display = 'none';
+                
+                sizeLabel.textContent = 'Espessura do Pincel';
+                sizeSlider.value = baseSize;
+                sizeVal.textContent = baseSize + 'px';
+            } else if (tool === 'highlighter') {
+                highlighterBtn.classList.add('active');
+                brushSection.style.display = 'flex';
+                colorSection.style.display = 'flex';
+                eraserSection.style.display = 'none';
+                
+                sizeLabel.textContent = 'Espessura do Marca-Texto';
+                sizeSlider.value = highlighterSize;
+                sizeVal.textContent = highlighterSize + 'px';
+            } else {
+                eraserBtn.classList.add('active');
+                brushSection.style.display = 'none';
+                colorSection.style.display = 'none';
+                eraserSection.style.display = 'flex';
+            }
+        }
+
+        brushBtn.addEventListener('click', () => selectTool('brush'));
+        highlighterBtn.addEventListener('click', () => selectTool('highlighter'));
+        eraserBtn.addEventListener('click', () => selectTool('eraser'));
+
+        sizeSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            sizeVal.textContent = val + 'px';
+            if (activeTool === 'highlighter') {
+                highlighterSize = val;
+            } else {
+                baseSize = val;
+            }
+        });
+
+        const eraserP = document.getElementById('eraser-p');
+        const eraserM = document.getElementById('eraser-m');
+        const eraserG = document.getElementById('eraser-g');
+        const eraserButtons = [eraserP, eraserM, eraserG];
+
+        eraserButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                eraserButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                eraserSize = parseInt(btn.getAttribute('data-size'));
+            });
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            if (confirm('Deseja limpar as anotações desta página?')) {
+                drawCtx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+                pushUndoState(); // Limpar a tela também conta como uma ação que pode ser desfeita!
+                saveCurrentDrawingState();
+            }
+        });
+
+        // Salvar Imagem Final
+        document.getElementById('btn-save').addEventListener('click', () => {
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = pdfCanvas.width;
+            exportCanvas.height = pdfCanvas.height;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            exportCtx.drawImage(pdfCanvas, 0, 0);
+            exportCtx.drawImage(paintCanvas, 0, 0);
+
+            const link = document.createElement('a');
+            link.download = pdfDoc ? `pdf-anotado-pagina-${pageNum}.png` : `quadro-livre.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // Teclas de atalho para profissionais
+        window.addEventListener('keydown', (e) => {
+            // Tecla Z com Ctrl ou Cmd para Desfazer rápido
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                performUndo();
+            }
+        });
+
+        // Inicializar com Quadro Branco
+        initBlankBoard('white');
+    </script>
+</body>
+</html>
